@@ -15,7 +15,7 @@ class DE(GeneticAlgorithmBase):
     def __init__(self, func, n_dim, F=0.5,
                  size_pop=50, max_iter=200, prob_mut=0.3,
                  lb=-1, ub=1,
-                 constraint_eq=tuple(), constraint_ueq=tuple()):
+                 constraint_eq=tuple(), constraint_ueq=tuple(), verbose=False):
         super().__init__(func, n_dim, size_pop, max_iter, prob_mut,
                          constraint_eq=constraint_eq, constraint_ueq=constraint_ueq)
 
@@ -23,6 +23,7 @@ class DE(GeneticAlgorithmBase):
         self.V, self.U = None, None
         self.lb, self.ub = np.array(lb) * np.ones(self.n_dim), np.array(ub) * np.ones(self.n_dim)
         self.crtbp()
+        self.verbose = verbose  # Print the simple result of each iter or not
 
     def crtbp(self):
         # create the population
@@ -76,8 +77,16 @@ class DE(GeneticAlgorithmBase):
         self.X = np.where((f_X < f_U).reshape(-1, 1), X, U)
         return self.X
 
-    def run(self, max_iter=None):
+    def run(self, max_iter=None, precision=1e-10, N=50):
+        '''
+        precision: None or float
+            If precision is None, it will run the number of max_iter steps
+            If precision is a float, the loop will stop if continuous N difference between pbest less than precision
+        N: int
+        '''
         self.max_iter = max_iter or self.max_iter
+        self.best_Y = []
+        c = 0
         for i in range(self.max_iter):
             self.mutation()
             self.crossover()
@@ -89,7 +98,21 @@ class DE(GeneticAlgorithmBase):
             self.generation_best_Y.append(self.Y[generation_best_index])
             self.all_history_Y.append(self.Y)
 
-        global_best_index = np.array(self.generation_best_Y).argmin()
-        self.best_x = self.generation_best_X[global_best_index]
-        self.best_y = self.func(np.array([self.best_x]))
+            global_best_index = np.array(self.generation_best_Y).argmin()
+            self.best_x = self.generation_best_X[global_best_index]
+            self.best_y = self.func(np.array([self.best_x]))
+            self.best_Y.append(self.best_y)
+
+            if i>1 and precision is not None:
+                tor_iter = self.best_Y[i-1] - self.best_Y[i]
+                if tor_iter < precision:
+                    c = c + 1
+                    if c > N:
+                        break
+                else:
+                    c = 0
+
+            if self.verbose:
+                print('Iter: {}, Best fit: {} at {}'.format(i, self.best_y, self.best_x))
+
         return self.best_x, self.best_y
